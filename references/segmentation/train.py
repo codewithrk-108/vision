@@ -14,30 +14,24 @@ from torch.optim.lr_scheduler import PolynomialLR
 from torchvision.transforms import functional as F, InterpolationMode
 
 
-def get_dataset(args, is_train):
+def get_dataset(dir_path, name, image_set, transform):
     def sbd(*args, **kwargs):
-        kwargs.pop("use_v2")
         return torchvision.datasets.SBDataset(*args, mode="segmentation", **kwargs)
 
-    def voc(*args, **kwargs):
-        kwargs.pop("use_v2")
-        return torchvision.datasets.VOCSegmentation(*args, **kwargs)
-
     paths = {
-        "voc": (args.data_path, voc, 21),
-        "voc_aug": (args.data_path, sbd, 21),
-        "coco": (args.data_path, get_coco, 21),
+        "voc": (dir_path, torchvision.datasets.VOCSegmentation, 21),
+        "voc_aug": (dir_path, sbd, 21),
+        "coco": (dir_path, get_coco, 21),
     }
-    p, ds_fn, num_classes = paths[args.dataset]
+    p, ds_fn, num_classes = paths[name]
 
-    image_set = "train" if is_train else "val"
-    ds = ds_fn(p, image_set=image_set, transforms=get_transform(is_train, args), use_v2=args.use_v2)
+    ds = ds_fn(p, image_set=image_set, transforms=transform)
     return ds, num_classes
 
 
-def get_transform(is_train, args):
-    if is_train:
-        return presets.SegmentationPresetTrain(base_size=520, crop_size=480, backend=args.backend, use_v2=args.use_v2)
+def get_transform(train, args):
+    if train:
+        return presets.SegmentationPresetTrain(base_size=520, crop_size=480)
     elif args.weights and args.test_only:
         weights = torchvision.models.get_weight(args.weights)
         trans = weights.transforms()
@@ -50,7 +44,7 @@ def get_transform(is_train, args):
 
         return preprocessing
     else:
-        return presets.SegmentationPresetEval(base_size=520, backend=args.backend, use_v2=args.use_v2)
+        return presets.SegmentationPresetEval(base_size=520)
 
 
 def criterion(inputs, target):
@@ -126,12 +120,6 @@ def train_one_epoch(model, criterion, optimizer, data_loader, lr_scheduler, devi
 
 
 def main(args):
-    if args.backend.lower() != "pil" and not args.use_v2:
-        # TODO: Support tensor backend in V1?
-        raise ValueError("Use --use-v2 if you want to use the tv_tensor or tensor backend.")
-    if args.use_v2 and args.dataset != "coco":
-        raise ValueError("v2 is only support supported for coco dataset for now.")
-
     if args.output_dir:
         utils.mkdir(args.output_dir)
 
@@ -146,8 +134,8 @@ def main(args):
     else:
         torch.backends.cudnn.benchmark = True
 
-    dataset, num_classes = get_dataset(args, is_train=True)
-    dataset_test, _ = get_dataset(args, is_train=False)
+    dataset, num_classes = get_dataset(args.data_path, args.dataset, "train", get_transform(True, args))
+    dataset_test, _ = get_dataset(args.data_path, args.dataset, "val", get_transform(False, args))
 
     if args.distributed:
         train_sampler = torch.utils.data.distributed.DistributedSampler(dataset)
@@ -223,7 +211,7 @@ def main(args):
         lr_scheduler = main_lr_scheduler
 
     if args.resume:
-        checkpoint = torch.load(args.resume, map_location="cpu", weights_only=True)
+        checkpoint = torch.load(args.resume, map_location="cpu")
         model_without_ddp.load_state_dict(checkpoint["model"], strict=not args.test_only)
         if not args.test_only:
             optimizer.load_state_dict(checkpoint["optimizer"])
@@ -272,7 +260,7 @@ def get_args_parser(add_help=True):
     parser.add_argument("--data-path", default="/datasets01/COCO/022719/", type=str, help="dataset path")
     parser.add_argument("--dataset", default="coco", type=str, help="dataset name")
     parser.add_argument("--model", default="fcn_resnet101", type=str, help="model name")
-    parser.add_argument("--aux-loss", action="store_true", help="auxiliary loss")
+    parser.add_argument("--aux-loss", action="store_true", help="auxiliar loss")
     parser.add_argument("--device", default="cuda", type=str, help="device (Use cuda or cpu Default: cuda)")
     parser.add_argument(
         "-b", "--batch-size", default=8, type=int, help="images per gpu, the total batch size is $NGPU x batch_size"
@@ -319,8 +307,6 @@ def get_args_parser(add_help=True):
     # Mixed precision training parameters
     parser.add_argument("--amp", action="store_true", help="Use torch.cuda.amp for mixed precision training")
 
-    parser.add_argument("--backend", default="PIL", type=str.lower, help="PIL or tensor - case insensitive")
-    parser.add_argument("--use-v2", action="store_true", help="Use V2 transforms")
     return parser
 
 

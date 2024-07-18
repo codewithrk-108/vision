@@ -1,5 +1,3 @@
-.. _datasets:
-
 Datasets
 ========
 
@@ -54,7 +52,6 @@ Image classification
     GTSRB
     INaturalist
     ImageNet
-    Imagenette
     KMNIST
     LFWPeople
     LSUN
@@ -83,6 +80,7 @@ Image detection or segmentation
     CocoDetection
     CelebA
     Cityscapes
+    GTSRB
     Kitti
     OxfordIIITPet
     SBDataset
@@ -151,14 +149,6 @@ Video classification
     Kinetics
     UCF101
 
-Video prediction
-~~~~~~~~~~~~~~~~~~~~
-
-.. autosummary::
-    :toctree: generated/
-    :template: class_dataset.rst
-
-    MovingMNIST
 
 .. _base_classes_datasets:
 
@@ -172,12 +162,3 @@ Base classes for custom datasets
     DatasetFolder
     ImageFolder
     VisionDataset
-
-Transforms v2
--------------
-
-.. autosummary::
-    :toctree: generated/
-    :template: function.rst
-
-    wrap_dataset_for_transforms_v2

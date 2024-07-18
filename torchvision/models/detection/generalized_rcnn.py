@@ -97,16 +97,13 @@ class GeneralizedRCNN(nn.Module):
                         "All bounding boxes should have positive height and width."
                         f" Found invalid box {degen_bb} for target at index {target_idx}.",
                     )
-        # print(images.tensors.shape)
+
         features = self.backbone(images.tensors)
         if isinstance(features, torch.Tensor):
             features = OrderedDict([("0", features)])
         proposals, proposal_losses = self.rpn(images, features, targets)
-        detections, detector_losses, embeddings_densemass = self.roi_heads(features, proposals, images.image_sizes, targets)
-        # print(embeddings_densemass.shape)
+        detections, detector_losses = self.roi_heads(features, proposals, images.image_sizes, targets)
         detections = self.transform.postprocess(detections, images.image_sizes, original_image_sizes)  # type: ignore[operator]
-
-        detections[0]['embeddings_densemass'] = embeddings_densemass
 
         losses = {}
         losses.update(detector_losses)
@@ -116,6 +113,6 @@ class GeneralizedRCNN(nn.Module):
             if not self._has_warned:
                 warnings.warn("RCNN always returns a (Losses, Detections) tuple in scripting")
                 self._has_warned = True
-            return losses, detections,
+            return losses, detections
         else:
             return self.eager_outputs(losses, detections)

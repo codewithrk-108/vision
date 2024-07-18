@@ -32,7 +32,6 @@ architectures, and common image transformations for computer vision.
    :caption: Package Reference
 
    transforms
-   tv_tensors
    models
    datasets
    utils

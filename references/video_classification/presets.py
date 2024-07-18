@@ -15,11 +15,7 @@ class VideoClassificationPresetTrain:
     ):
         trans = [
             transforms.ConvertImageDtype(torch.float32),
-            # We hard-code antialias=False to preserve results after we changed
-            # its default from None to True (see
-            # https://github.com/pytorch/vision/pull/7160)
-            # TODO: we could re-train the video models with antialias=True?
-            transforms.Resize(resize_size, antialias=False),
+            transforms.Resize(resize_size),
         ]
         if hflip_prob > 0:
             trans.append(transforms.RandomHorizontalFlip(hflip_prob))
@@ -35,11 +31,7 @@ class VideoClassificationPresetEval:
         self.transforms = transforms.Compose(
             [
                 transforms.ConvertImageDtype(torch.float32),
-                # We hard-code antialias=False to preserve results after we changed
-                # its default from None to True (see
-                # https://github.com/pytorch/vision/pull/7160)
-                # TODO: we could re-train the video models with antialias=True?
-                transforms.Resize(resize_size, antialias=False),
+                transforms.Resize(resize_size),
                 transforms.Normalize(mean=mean, std=std),
                 transforms.CenterCrop(crop_size),
                 ConvertBCHWtoCBHW(),

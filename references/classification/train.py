@@ -7,13 +7,12 @@ import presets
 import torch
 import torch.utils.data
 import torchvision
-import torchvision.transforms
+import transforms
 import utils
 from sampler import RASampler
 from torch import nn
 from torch.utils.data.dataloader import default_collate
 from torchvision.transforms.functional import InterpolationMode
-from transforms import get_mixup_cutmix
 
 
 def train_one_epoch(model, criterion, optimizer, data_loader, device, epoch, args, model_ema=None, scaler=None):
@@ -127,15 +126,12 @@ def load_data(traindir, valdir, args):
     if args.cache_dataset and os.path.exists(cache_path):
         # Attention, as the transforms are also cached!
         print(f"Loading dataset_train from {cache_path}")
-        # TODO: this could probably be weights_only=True
-        dataset, _ = torch.load(cache_path, weights_only=False)
+        dataset, _ = torch.load(cache_path)
     else:
-        # We need a default value for the variables below because args may come
-        # from train_quantization.py which doesn't define them.
         auto_augment_policy = getattr(args, "auto_augment", None)
         random_erase_prob = getattr(args, "random_erase", 0.0)
-        ra_magnitude = getattr(args, "ra_magnitude", None)
-        augmix_severity = getattr(args, "augmix_severity", None)
+        ra_magnitude = args.ra_magnitude
+        augmix_severity = args.augmix_severity
         dataset = torchvision.datasets.ImageFolder(
             traindir,
             presets.ClassificationPresetTrain(
@@ -145,8 +141,6 @@ def load_data(traindir, valdir, args):
                 random_erase_prob=random_erase_prob,
                 ra_magnitude=ra_magnitude,
                 augmix_severity=augmix_severity,
-                backend=args.backend,
-                use_v2=args.use_v2,
             ),
         )
         if args.cache_dataset:
@@ -160,22 +154,14 @@ def load_data(traindir, valdir, args):
     if args.cache_dataset and os.path.exists(cache_path):
         # Attention, as the transforms are also cached!
         print(f"Loading dataset_test from {cache_path}")
-        # TODO: this could probably be weights_only=True
-        dataset_test, _ = torch.load(cache_path, weights_only=False)
+        dataset_test, _ = torch.load(cache_path)
     else:
         if args.weights and args.test_only:
             weights = torchvision.models.get_weight(args.weights)
-            preprocessing = weights.transforms(antialias=True)
-            if args.backend == "tensor":
-                preprocessing = torchvision.transforms.Compose([torchvision.transforms.PILToTensor(), preprocessing])
-
+            preprocessing = weights.transforms()
         else:
             preprocessing = presets.ClassificationPresetEval(
-                crop_size=val_crop_size,
-                resize_size=val_resize_size,
-                interpolation=interpolation,
-                backend=args.backend,
-                use_v2=args.use_v2,
+                crop_size=val_crop_size, resize_size=val_resize_size, interpolation=interpolation
             )
 
         dataset_test = torchvision.datasets.ImageFolder(
@@ -220,17 +206,18 @@ def main(args):
     val_dir = os.path.join(args.data_path, "val")
     dataset, dataset_test, train_sampler, test_sampler = load_data(train_dir, val_dir, args)
 
+    collate_fn = None
     num_classes = len(dataset.classes)
-    mixup_cutmix = get_mixup_cutmix(
-        mixup_alpha=args.mixup_alpha, cutmix_alpha=args.cutmix_alpha, num_classes=num_classes, use_v2=args.use_v2
-    )
-    if mixup_cutmix is not None:
+    mixup_transforms = []
+    if args.mixup_alpha > 0.0:
+        mixup_transforms.append(transforms.RandomMixup(num_classes, p=1.0, alpha=args.mixup_alpha))
+    if args.cutmix_alpha > 0.0:
+        mixup_transforms.append(transforms.RandomCutmix(num_classes, p=1.0, alpha=args.cutmix_alpha))
+    if mixup_transforms:
+        mixupcutmix = torchvision.transforms.RandomChoice(mixup_transforms)
 
         def collate_fn(batch):
-            return mixup_cutmix(*default_collate(batch))
-
-    else:
-        collate_fn = default_collate
+            return mixupcutmix(*default_collate(batch))
 
     data_loader = torch.utils.data.DataLoader(
         dataset,
@@ -327,11 +314,11 @@ def main(args):
 
     model_ema = None
     if args.model_ema:
-        # Decay adjustment that aims to keep the decay independent of other hyper-parameters originally proposed at:
+        # Decay adjustment that aims to keep the decay independent from other hyper-parameters originally proposed at:
         # https://github.com/facebookresearch/pycls/blob/f8cd9627/pycls/core/net.py#L123
         #
         # total_ema_updates = (Dataset_size / n_GPUs) * epochs / (batch_size_per_gpu * EMA_steps)
-        # We consider constant = Dataset_size for a given dataset/setup and omit it. Thus:
+        # We consider constant = Dataset_size for a given dataset/setup and ommit it. Thus:
         # adjust = 1 / total_ema_updates ~= n_GPUs * batch_size_per_gpu * EMA_steps / epochs
         adjust = args.world_size * args.batch_size * args.model_ema_steps / args.epochs
         alpha = 1.0 - args.model_ema_decay
@@ -339,7 +326,7 @@ def main(args):
         model_ema = utils.ExponentialMovingAverage(model_without_ddp, device=device, decay=1.0 - alpha)
 
     if args.resume:
-        checkpoint = torch.load(args.resume, map_location="cpu", weights_only=True)
+        checkpoint = torch.load(args.resume, map_location="cpu")
         model_without_ddp.load_state_dict(checkpoint["model"])
         if not args.test_only:
             optimizer.load_state_dict(checkpoint["optimizer"])
@@ -518,8 +505,6 @@ def get_args_parser(add_help=True):
         "--ra-reps", default=3, type=int, help="number of repetitions for Repeated Augmentation (default: 3)"
     )
     parser.add_argument("--weights", default=None, type=str, help="the weights enum name to load")
-    parser.add_argument("--backend", default="PIL", type=str.lower, help="PIL or tensor - case insensitive")
-    parser.add_argument("--use-v2", action="store_true", help="Use V2 transforms")
     return parser
 
 

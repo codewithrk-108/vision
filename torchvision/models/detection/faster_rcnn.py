@@ -23,7 +23,6 @@ from .transform import GeneralizedRCNNTransform
 
 __all__ = [
     "FasterRCNN",
-    "FastRCNNPredictor",
     "FasterRCNN_ResNet50_FPN_Weights",
     "FasterRCNN_ResNet50_FPN_V2_Weights",
     "FasterRCNN_MobileNet_V3_Large_FPN_Weights",
@@ -457,7 +456,6 @@ class FasterRCNN_MobileNet_V3_Large_320_FPN_Weights(WeightsEnum):
     weights=("pretrained", FasterRCNN_ResNet50_FPN_Weights.COCO_V1),
     weights_backbone=("pretrained_backbone", ResNet50_Weights.IMAGENET1K_V1),
 )
-
 def fasterrcnn_resnet50_fpn(
     *,
     weights: Optional[FasterRCNN_ResNet50_FPN_Weights] = None,

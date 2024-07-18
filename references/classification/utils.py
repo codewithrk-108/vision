@@ -287,7 +287,8 @@ def average_checkpoints(inputs):
     for fpath in inputs:
         with open(fpath, "rb") as f:
             state = torch.load(
-                f, map_location=(lambda s, _: torch.serialization.default_restore_location(s, "cpu")), weights_only=True
+                f,
+                map_location=(lambda s, _: torch.serialization.default_restore_location(s, "cpu")),
             )
         # Copies over the settings from the first checkpoint
         if new_state is None:
@@ -364,12 +365,12 @@ def store_model_weights(model, checkpoint_path, checkpoint_key="model", strict=T
     checkpoint_path = os.path.abspath(checkpoint_path)
     output_dir = os.path.dirname(checkpoint_path)
 
-    # Deep copy to avoid side effects on the model object.
+    # Deep copy to avoid side-effects on the model object.
     model = copy.deepcopy(model)
-    checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
+    checkpoint = torch.load(checkpoint_path, map_location="cpu")
 
     # Load the weights to the model to validate that everything works
-    # and remove unnecessary weights (such as auxiliaries, etc.)
+    # and remove unnecessary weights (such as auxiliaries, etc)
     if checkpoint_key == "model_ema":
         del checkpoint[checkpoint_key]["n_averaged"]
         torch.nn.modules.utils.consume_prefix_in_state_dict_if_present(checkpoint[checkpoint_key], "module.")

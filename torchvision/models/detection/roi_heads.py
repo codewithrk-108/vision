@@ -877,3 +877,4 @@ class RoIHeads(nn.Module):
             losses.update(loss_keypoint)
 
         return result, losses, embeddings_densemass 
+
