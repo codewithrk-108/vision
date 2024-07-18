@@ -1,7 +1,6 @@
 import csv
 import os
 from collections import namedtuple
-from pathlib import Path
 from typing import Any, Callable, List, Optional, Tuple, Union
 
 import PIL
@@ -17,36 +16,32 @@ class CelebA(VisionDataset):
     """`Large-scale CelebFaces Attributes (CelebA) Dataset <http://mmlab.ie.cuhk.edu.hk/projects/CelebA.html>`_ Dataset.
 
     Args:
-        root (str or ``pathlib.Path``): Root directory where images are downloaded to.
+        root (string): Root directory where images are downloaded to.
         split (string): One of {'train', 'valid', 'test', 'all'}.
             Accordingly dataset is selected.
         target_type (string or list, optional): Type of target to use, ``attr``, ``identity``, ``bbox``,
             or ``landmarks``. Can also be a list to output a tuple with all specified target types.
             The targets represent:
 
-                - ``attr`` (Tensor shape=(40,) dtype=int): binary (0, 1) labels for attributes
+                - ``attr`` (np.array shape=(40,) dtype=int): binary (0, 1) labels for attributes
                 - ``identity`` (int): label for each person (data points with the same identity are the same person)
-                - ``bbox`` (Tensor shape=(4,) dtype=int): bounding box (x, y, width, height)
-                - ``landmarks`` (Tensor shape=(10,) dtype=int): landmark points (lefteye_x, lefteye_y, righteye_x,
+                - ``bbox`` (np.array shape=(4,) dtype=int): bounding box (x, y, width, height)
+                - ``landmarks`` (np.array shape=(10,) dtype=int): landmark points (lefteye_x, lefteye_y, righteye_x,
                   righteye_y, nose_x, nose_y, leftmouth_x, leftmouth_y, rightmouth_x, rightmouth_y)
 
             Defaults to ``attr``. If empty, ``None`` will be returned as target.
 
-        transform (callable, optional): A function/transform that takes in a PIL image
+        transform (callable, optional): A function/transform that  takes in an PIL image
             and returns a transformed version. E.g, ``transforms.PILToTensor``
         target_transform (callable, optional): A function/transform that takes in the
             target and transforms it.
         download (bool, optional): If true, downloads the dataset from the internet and
             puts it in root directory. If dataset is already downloaded, it is not
             downloaded again.
-
-            .. warning::
-
-                To download the dataset `gdown <https://github.com/wkentaro/gdown>`_ is required.
     """
 
     base_folder = "celeba"
-    # There currently does not appear to be an easy way to extract 7z in python (without introducing additional
+    # There currently does not appear to be a easy way to extract 7z in python (without introducing additional
     # dependencies). The "in-the-wild" (not aligned+cropped) images are only in 7z, so they are not available
     # right now.
     file_list = [
@@ -64,7 +59,7 @@ class CelebA(VisionDataset):
 
     def __init__(
         self,
-        root: Union[str, Path],
+        root: str,
         split: str = "train",
         target_type: Union[List[str], str] = "attr",
         transform: Optional[Callable] = None,

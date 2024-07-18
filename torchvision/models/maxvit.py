@@ -1,7 +1,6 @@
 import math
-from collections import OrderedDict
 from functools import partial
-from typing import Any, Callable, List, Optional, Sequence, Tuple
+from typing import Any, Callable, List, Optional, OrderedDict, Sequence, Tuple
 
 import numpy as np
 import torch
@@ -301,7 +300,7 @@ class PartitionAttentionLayer(nn.Module):
         self,
         in_channels: int,
         head_dim: int,
-        # partitioning parameters
+        # partitioning parameteres
         partition_size: int,
         partition_type: str,
         # grid size needs to be known at initialization time
@@ -427,7 +426,7 @@ class MaxVitLayer(nn.Module):
     ) -> None:
         super().__init__()
 
-        layers: OrderedDict = OrderedDict()
+        layers: OrderedDict[str, Any] = OrderedDict()  # type: ignore
 
         # convolutional layer
         layers["MBconv"] = MBConv(
@@ -577,7 +576,7 @@ class MaxVit(nn.Module):
         stochastic_depth_prob (float): Probability of stochastic depth. Expands to a list of probabilities for each layer that scales linearly to the specified value.
         squeeze_ratio (float): Squeeze ratio in the SE Layer. Default: 0.25.
         expansion_ratio (float): Expansion ratio in the MBConv bottleneck. Default: 4.
-        norm_layer (Callable[..., nn.Module]): Normalization function. Default: None (setting to None will produce a `BatchNorm2d(eps=1e-3, momentum=0.01)`).
+        norm_layer (Callable[..., nn.Module]): Normalization function. Default: None (setting to None will produce a `BatchNorm2d(eps=1e-3, momentum=0.99)`).
         activation_layer (Callable[..., nn.Module]): Activation function Default: nn.GELU.
         head_dim (int): Dimension of the attention heads.
         mlp_ratio (int): Expansion ratio of the MLP layer. Default: 4.
@@ -623,7 +622,7 @@ class MaxVit(nn.Module):
         # https://github.com/google-research/maxvit/blob/da76cf0d8a6ec668cc31b399c4126186da7da944/maxvit/models/maxvit.py#L1029-L1030
         # for the exact parameters used in batchnorm
         if norm_layer is None:
-            norm_layer = partial(nn.BatchNorm2d, eps=1e-3, momentum=0.01)
+            norm_layer = partial(nn.BatchNorm2d, eps=1e-3, momentum=0.99)
 
         # Make sure input size will be divisible by the partition size in all blocks
         # Undefined behavior if H or W are not divisible by p
@@ -763,7 +762,7 @@ def _maxvit(
     )
 
     if weights is not None:
-        model.load_state_dict(weights.get_state_dict(progress=progress, check_hash=True))
+        model.load_state_dict(weights.get_state_dict(progress=progress))
 
     return model
 
@@ -786,10 +785,7 @@ class MaxVit_T_Weights(WeightsEnum):
                     "acc@5": 96.722,
                 }
             },
-            "_ops": 5.558,
-            "_file_size": 118.769,
-            "_docs": """These weights reproduce closely the results of the paper using a similar training recipe.
-            They were trained with a BatchNorm2D momentum of 0.99 instead of the more correct 0.01.""",
+            "_docs": """These weights reproduce closely the results of the paper using a similar training recipe.""",
         },
     )
     DEFAULT = IMAGENET1K_V1

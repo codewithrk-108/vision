@@ -168,7 +168,7 @@ class QuantizableInception3(inception_module.Inception3):
 
 class Inception_V3_QuantizedWeights(WeightsEnum):
     IMAGENET1K_FBGEMM_V1 = Weights(
-        url="https://download.pytorch.org/models/quantized/inception_v3_google_fbgemm-a2837893.pth",
+        url="https://download.pytorch.org/models/quantized/inception_v3_google_fbgemm-71447a44.pth",
         transforms=partial(ImageClassification, crop_size=299, resize_size=342),
         meta={
             "num_params": 27161264,
@@ -183,8 +183,6 @@ class Inception_V3_QuantizedWeights(WeightsEnum):
                     "acc@5": 93.354,
                 }
             },
-            "_ops": 5.713,
-            "_file_size": 23.146,
             "_docs": """
                 These weights were produced by doing Post Training Quantization (eager mode) on top of the unquantized
                 weights listed below.
@@ -265,9 +263,22 @@ def inception_v3(
         if quantize and not original_aux_logits:
             model.aux_logits = False
             model.AuxLogits = None
-        model.load_state_dict(weights.get_state_dict(progress=progress, check_hash=True))
+        model.load_state_dict(weights.get_state_dict(progress=progress))
         if not quantize and not original_aux_logits:
             model.aux_logits = False
             model.AuxLogits = None
 
     return model
+
+
+# The dictionary below is internal implementation detail and will be removed in v0.15
+from .._utils import _ModelURLs
+from ..inception import model_urls  # noqa: F401
+
+
+quant_model_urls = _ModelURLs(
+    {
+        # fp32 weights ported from TensorFlow, quantized in PyTorch
+        "inception_v3_google_fbgemm": Inception_V3_QuantizedWeights.IMAGENET1K_FBGEMM_V1.url,
+    }
+)

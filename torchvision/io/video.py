@@ -12,6 +12,7 @@ import torch
 from ..utils import _log_api_usage_once
 from . import _video_opt
 
+
 try:
     import av
 
@@ -241,10 +242,11 @@ def read_video(
     output_format: str = "THWC",
 ) -> Tuple[torch.Tensor, torch.Tensor, Dict[str, Any]]:
     """
-    Reads a video from a file, returning both the video frames and the audio frames
+    Reads a video from a file, returning both the video frames as well as
+    the audio frames
 
     Args:
-        filename (str): path to the video file. If using the pyav backend, this can be whatever ``av.open`` accepts.
+        filename (str): path to the video file
         start_pts (int if pts_unit = 'pts', float / Fraction if pts_unit = 'sec', optional):
             The start presentation time of the video
         end_pts (int if pts_unit = 'pts', float / Fraction if pts_unit = 'sec', optional):
@@ -267,9 +269,10 @@ def read_video(
 
     from torchvision import get_video_backend
 
+    if not os.path.exists(filename):
+        raise RuntimeError(f"File not found: {filename}")
+
     if get_video_backend() != "pyav":
-        if not os.path.exists(filename):
-            raise RuntimeError(f"File not found: {filename}")
         vframes, aframes, info = _video_opt._read_video(filename, start_pts, end_pts, pts_unit)
     else:
         _check_av_available()

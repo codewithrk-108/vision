@@ -1,15 +1,14 @@
-import fnmatch
 import importlib
 import inspect
 import sys
-from dataclasses import dataclass
-from enum import Enum
-from functools import partial
+from dataclasses import dataclass, fields
 from inspect import signature
 from types import ModuleType
-from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Set, Type, TypeVar, Union
+from typing import Any, Callable, cast, Dict, List, Mapping, Optional, TypeVar, Union
 
 from torch import nn
+
+from torchvision._utils import StrEnum
 
 from .._internally_replaced_utils import load_state_dict_from_url
 
@@ -38,34 +37,8 @@ class Weights:
     transforms: Callable
     meta: Dict[str, Any]
 
-    def __eq__(self, other: Any) -> bool:
-        # We need this custom implementation for correct deep-copy and deserialization behavior.
-        # TL;DR: After the definition of an enum, creating a new instance, i.e. by deep-copying or deserializing it,
-        # involves an equality check against the defined members. Unfortunately, the `transforms` attribute is often
-        # defined with `functools.partial` and `fn = partial(...); assert deepcopy(fn) != fn`. Without custom handling
-        # for it, the check against the defined members would fail and effectively prevent the weights from being
-        # deep-copied or deserialized.
-        # See https://github.com/pytorch/vision/pull/7107 for details.
-        if not isinstance(other, Weights):
-            return NotImplemented
 
-        if self.url != other.url:
-            return False
-
-        if self.meta != other.meta:
-            return False
-
-        if isinstance(self.transforms, partial) and isinstance(other.transforms, partial):
-            return (
-                self.transforms.func == other.transforms.func
-                and self.transforms.args == other.transforms.args
-                and self.transforms.keywords == other.transforms.keywords
-            )
-        else:
-            return self.transforms == other.transforms
-
-
-class WeightsEnum(Enum):
+class WeightsEnum(StrEnum):
     """
     This class is the parent class of all model weights. Each model building method receives an optional `weights`
     parameter with its associated pre-trained weights. It inherits from `Enum` and its values should be of type
@@ -75,39 +48,39 @@ class WeightsEnum(Enum):
         value (Weights): The data class entry with the weight information.
     """
 
+    def __init__(self, value: Weights):
+        self._value_ = value
+
     @classmethod
     def verify(cls, obj: Any) -> Any:
         if obj is not None:
             if type(obj) is str:
-                obj = cls[obj.replace(cls.__name__ + ".", "")]
+                obj = cls.from_str(obj.replace(cls.__name__ + ".", ""))
             elif not isinstance(obj, cls):
                 raise TypeError(
                     f"Invalid Weight class provided; expected {cls.__name__} but received {obj.__class__.__name__}."
                 )
         return obj
 
-    def get_state_dict(self, *args: Any, **kwargs: Any) -> Mapping[str, Any]:
-        return load_state_dict_from_url(self.url, *args, **kwargs)
+    def get_state_dict(self, progress: bool) -> Mapping[str, Any]:
+        return load_state_dict_from_url(self.url, progress=progress)
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}.{self._name_}"
 
-    @property
-    def url(self):
-        return self.value.url
-
-    @property
-    def transforms(self):
-        return self.value.transforms
-
-    @property
-    def meta(self):
-        return self.value.meta
+    def __getattr__(self, name):
+        # Be able to fetch Weights attributes directly
+        for f in fields(Weights):
+            if f.name == name:
+                return object.__getattribute__(self.value, name)
+        return super().__getattr__(name)
 
 
 def get_weight(name: str) -> WeightsEnum:
     """
     Gets the weights enum value by its full name. Example: "ResNet50_Weights.IMAGENET1K_V1"
+
+    .. betastatus:: function
 
     Args:
         name (str): The name of the weight enum entry.
@@ -123,9 +96,7 @@ def get_weight(name: str) -> WeightsEnum:
     base_module_name = ".".join(sys.modules[__name__].__name__.split(".")[:-1])
     base_module = importlib.import_module(base_module_name)
     model_modules = [base_module] + [
-        x[1]
-        for x in inspect.getmembers(base_module, inspect.ismodule)
-        if x[1].__file__.endswith("__init__.py")  # type: ignore[union-attr]
+        x[1] for x in inspect.getmembers(base_module, inspect.ismodule) if x[1].__file__.endswith("__init__.py")
     ]
 
     weights_enum = None
@@ -138,12 +109,14 @@ def get_weight(name: str) -> WeightsEnum:
     if weights_enum is None:
         raise ValueError(f"The weight enum '{enum_name}' for the specific method couldn't be retrieved.")
 
-    return weights_enum[value_name]
+    return weights_enum.from_str(value_name)
 
 
-def get_model_weights(name: Union[Callable, str]) -> Type[WeightsEnum]:
+def get_model_weights(name: Union[Callable, str]) -> WeightsEnum:
     """
-    Returns the weights enum class associated to the given model.
+    Retuns the weights enum class associated to the given model.
+
+    .. betastatus:: function
 
     Args:
         name (callable or str): The model builder function or the name under which it is registered.
@@ -155,12 +128,13 @@ def get_model_weights(name: Union[Callable, str]) -> Type[WeightsEnum]:
     return _get_enum_from_fn(model)
 
 
-def _get_enum_from_fn(fn: Callable) -> Type[WeightsEnum]:
+def _get_enum_from_fn(fn: Callable) -> WeightsEnum:
     """
     Internal method that gets the weight enum of a specific model builder method.
 
     Args:
         fn (Callable): The builder method used to create the model.
+        weight_name (str): The name of the weight enum entry of the specific model.
     Returns:
         WeightsEnum: The requested weight enum.
     """
@@ -185,7 +159,7 @@ def _get_enum_from_fn(fn: Callable) -> Type[WeightsEnum]:
             "The WeightsEnum class for the specific method couldn't be retrieved. Make sure the typing info is correct."
         )
 
-    return weights_enum
+    return cast(WeightsEnum, weights_enum)
 
 
 M = TypeVar("M", bound=nn.Module)
@@ -204,49 +178,29 @@ def register_model(name: Optional[str] = None) -> Callable[[Callable[..., M]], C
     return wrapper
 
 
-def list_models(
-    module: Optional[ModuleType] = None,
-    include: Union[Iterable[str], str, None] = None,
-    exclude: Union[Iterable[str], str, None] = None,
-) -> List[str]:
+def list_models(module: Optional[ModuleType] = None) -> List[str]:
     """
     Returns a list with the names of registered models.
 
+    .. betastatus:: function
+
     Args:
         module (ModuleType, optional): The module from which we want to extract the available models.
-        include (str or Iterable[str], optional): Filter(s) for including the models from the set of all models.
-            Filters are passed to `fnmatch <https://docs.python.org/3/library/fnmatch.html>`__ to match Unix shell-style
-            wildcards. In case of many filters, the results is the union of individual filters.
-        exclude (str or Iterable[str], optional): Filter(s) applied after include_filters to remove models.
-            Filter are passed to `fnmatch <https://docs.python.org/3/library/fnmatch.html>`__ to match Unix shell-style
-            wildcards. In case of many filters, the results is removal of all the models that match any individual filter.
 
     Returns:
         models (list): A list with the names of available models.
     """
-    all_models = {
+    models = [
         k for k, v in BUILTIN_MODELS.items() if module is None or v.__module__.rsplit(".", 1)[0] == module.__name__
-    }
-    if include:
-        models: Set[str] = set()
-        if isinstance(include, str):
-            include = [include]
-        for include_filter in include:
-            models = models | set(fnmatch.filter(all_models, include_filter))
-    else:
-        models = all_models
-
-    if exclude:
-        if isinstance(exclude, str):
-            exclude = [exclude]
-        for exclude_filter in exclude:
-            models = models - set(fnmatch.filter(all_models, exclude_filter))
+    ]
     return sorted(models)
 
 
 def get_model_builder(name: str) -> Callable[..., nn.Module]:
     """
     Gets the model name and returns the model builder method.
+
+    .. betastatus:: function
 
     Args:
         name (str): The name under which the model is registered.
@@ -265,6 +219,8 @@ def get_model_builder(name: str) -> Callable[..., nn.Module]:
 def get_model(name: str, **config: Any) -> nn.Module:
     """
     Gets the model name and configuration and returns an instantiated model.
+
+    .. betastatus:: function
 
     Args:
         name (str): The name under which the model is registered.

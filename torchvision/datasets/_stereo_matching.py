@@ -6,16 +6,13 @@ import shutil
 from abc import ABC, abstractmethod
 from glob import glob
 from pathlib import Path
-from typing import Callable, cast, List, Optional, Tuple, Union
+from typing import Callable, List, Optional, Tuple, Union
 
 import numpy as np
 from PIL import Image
 
 from .utils import _read_pfm, download_and_extract_archive, verify_str_arg
 from .vision import VisionDataset
-
-T1 = Tuple[Image.Image, Image.Image, Optional[np.ndarray], np.ndarray]
-T2 = Tuple[Image.Image, Image.Image, Optional[np.ndarray]]
 
 __all__ = ()
 
@@ -27,7 +24,7 @@ class StereoMatchingDataset(ABC, VisionDataset):
 
     _has_built_in_disparity_mask = False
 
-    def __init__(self, root: Union[str, Path], transforms: Optional[Callable] = None) -> None:
+    def __init__(self, root: str, transforms: Optional[Callable] = None):
         """
         Args:
             root(str): Root directory of the dataset.
@@ -58,14 +55,10 @@ class StereoMatchingDataset(ABC, VisionDataset):
     def _read_img(self, file_path: Union[str, Path]) -> Image.Image:
         img = Image.open(file_path)
         if img.mode != "RGB":
-            img = img.convert("RGB")  # type: ignore [assignment]
+            img = img.convert("RGB")
         return img
 
-    def _scan_pairs(
-        self,
-        paths_left_pattern: str,
-        paths_right_pattern: Optional[str] = None,
-    ) -> List[Tuple[str, Optional[str]]]:
+    def _scan_pairs(self, paths_left_pattern: str, paths_right_pattern: Optional[str] = None):
 
         left_paths = list(sorted(glob(paths_left_pattern)))
 
@@ -92,11 +85,11 @@ class StereoMatchingDataset(ABC, VisionDataset):
         return paths
 
     @abstractmethod
-    def _read_disparity(self, file_path: str) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+    def _read_disparity(self, file_path: str) -> Tuple:
         # function that returns a disparity map and an occlusion map
         pass
 
-    def __getitem__(self, index: int) -> Union[T1, T2]:
+    def __getitem__(self, index: int) -> Tuple:
         """Return example at given index.
 
         Args:
@@ -127,7 +120,7 @@ class StereoMatchingDataset(ABC, VisionDataset):
             ) = self.transforms(imgs, dsp_maps, valid_masks)
 
         if self._has_built_in_disparity_mask or valid_masks[0] is not None:
-            return imgs[0], imgs[1], dsp_maps[0], cast(np.ndarray, valid_masks[0])
+            return imgs[0], imgs[1], dsp_maps[0], valid_masks[0]
         else:
             return imgs[0], imgs[1], dsp_maps[0]
 
@@ -159,11 +152,11 @@ class CarlaStereo(StereoMatchingDataset):
                     ...
 
     Args:
-        root (str or ``pathlib.Path``): Root directory where `carla-highres` is located.
+        root (string): Root directory where `carla-highres` is located.
         transforms (callable, optional): A function/transform that takes in a sample and returns a transformed version.
     """
 
-    def __init__(self, root: Union[str, Path], transforms: Optional[Callable] = None) -> None:
+    def __init__(self, root: str, transforms: Optional[Callable] = None):
         super().__init__(root, transforms)
 
         root = Path(root) / "carla-highres"
@@ -178,13 +171,13 @@ class CarlaStereo(StereoMatchingDataset):
         disparities = self._scan_pairs(left_disparity_pattern, right_disparity_pattern)
         self._disparities = disparities
 
-    def _read_disparity(self, file_path: str) -> Tuple[np.ndarray, None]:
+    def _read_disparity(self, file_path: str) -> Tuple:
         disparity_map = _read_pfm_file(file_path)
         disparity_map = np.abs(disparity_map)  # ensure that the disparity is positive
         valid_mask = None
         return disparity_map, valid_mask
 
-    def __getitem__(self, index: int) -> T1:
+    def __getitem__(self, index: int) -> Tuple:
         """Return example at given index.
 
         Args:
@@ -196,7 +189,7 @@ class CarlaStereo(StereoMatchingDataset):
             If a ``valid_mask`` is generated within the ``transforms`` parameter,
             a 4-tuple with ``(img_left, img_right, disparity, valid_mask)`` is returned.
         """
-        return cast(T1, super().__getitem__(index))
+        return super().__getitem__(index)
 
 
 class Kitti2012Stereo(StereoMatchingDataset):
@@ -233,14 +226,14 @@ class Kitti2012Stereo(StereoMatchingDataset):
                     calib
 
     Args:
-        root (str or ``pathlib.Path``): Root directory where `Kitti2012` is located.
+        root (string): Root directory where `Kitti2012` is located.
         split (string, optional): The dataset split of scenes, either "train" (default) or "test".
         transforms (callable, optional): A function/transform that takes in a sample and returns a transformed version.
     """
 
     _has_built_in_disparity_mask = True
 
-    def __init__(self, root: Union[str, Path], split: str = "train", transforms: Optional[Callable] = None) -> None:
+    def __init__(self, root: str, split: str = "train", transforms: Optional[Callable] = None):
         super().__init__(root, transforms)
 
         verify_str_arg(split, "split", valid_values=("train", "test"))
@@ -257,7 +250,7 @@ class Kitti2012Stereo(StereoMatchingDataset):
         else:
             self._disparities = list((None, None) for _ in self._images)
 
-    def _read_disparity(self, file_path: str) -> Tuple[Optional[np.ndarray], None]:
+    def _read_disparity(self, file_path: str) -> Tuple:
         # test split has no disparity maps
         if file_path is None:
             return None, None
@@ -268,7 +261,7 @@ class Kitti2012Stereo(StereoMatchingDataset):
         valid_mask = None
         return disparity_map, valid_mask
 
-    def __getitem__(self, index: int) -> T1:
+    def __getitem__(self, index: int) -> Tuple:
         """Return example at given index.
 
         Args:
@@ -281,7 +274,7 @@ class Kitti2012Stereo(StereoMatchingDataset):
             generate a valid mask.
             Both ``disparity`` and ``valid_mask`` are ``None`` if the dataset split is test.
         """
-        return cast(T1, super().__getitem__(index))
+        return super().__getitem__(index)
 
 
 class Kitti2015Stereo(StereoMatchingDataset):
@@ -321,14 +314,14 @@ class Kitti2015Stereo(StereoMatchingDataset):
                     calib
 
     Args:
-        root (str or ``pathlib.Path``): Root directory where `Kitti2015` is located.
+        root (string): Root directory where `Kitti2015` is located.
         split (string, optional): The dataset split of scenes, either "train" (default) or "test".
         transforms (callable, optional): A function/transform that takes in a sample and returns a transformed version.
     """
 
     _has_built_in_disparity_mask = True
 
-    def __init__(self, root: Union[str, Path], split: str = "train", transforms: Optional[Callable] = None) -> None:
+    def __init__(self, root: str, split: str = "train", transforms: Optional[Callable] = None):
         super().__init__(root, transforms)
 
         verify_str_arg(split, "split", valid_values=("train", "test"))
@@ -345,7 +338,7 @@ class Kitti2015Stereo(StereoMatchingDataset):
         else:
             self._disparities = list((None, None) for _ in self._images)
 
-    def _read_disparity(self, file_path: str) -> Tuple[Optional[np.ndarray], None]:
+    def _read_disparity(self, file_path: str) -> Tuple:
         # test split has no disparity maps
         if file_path is None:
             return None, None
@@ -356,7 +349,7 @@ class Kitti2015Stereo(StereoMatchingDataset):
         valid_mask = None
         return disparity_map, valid_mask
 
-    def __getitem__(self, index: int) -> T1:
+    def __getitem__(self, index: int) -> Tuple:
         """Return example at given index.
 
         Args:
@@ -369,7 +362,7 @@ class Kitti2015Stereo(StereoMatchingDataset):
             generate a valid mask.
             Both ``disparity`` and ``valid_mask`` are ``None`` if the dataset split is test.
         """
-        return cast(T1, super().__getitem__(index))
+        return super().__getitem__(index)
 
 
 class Middlebury2014Stereo(StereoMatchingDataset):
@@ -420,13 +413,13 @@ class Middlebury2014Stereo(StereoMatchingDataset):
                     ...
 
     Args:
-        root (str or ``pathlib.Path``): Root directory of the Middleburry 2014 Dataset.
+        root (string): Root directory of the Middleburry 2014 Dataset.
         split (string, optional): The dataset split of scenes, either "train" (default), "test", or "additional"
         use_ambient_views (boolean, optional): Whether to use different expose or lightning views when possible.
             The dataset samples with equal probability between ``[im1.png, im1E.png, im1L.png]``.
-        calibration (string, optional): Whether or not to use the calibrated (default) or uncalibrated scenes.
+        calibration (string, optional): Wether or not to use the calibrated (default) or uncalibrated scenes.
         transforms (callable, optional): A function/transform that takes in a sample and returns a transformed version.
-        download (boolean, optional): Whether or not to download the dataset in the ``root`` directory.
+        download (boolean, optional): Wether or not to download the dataset in the ``root`` directory.
     """
 
     splits = {
@@ -480,13 +473,13 @@ class Middlebury2014Stereo(StereoMatchingDataset):
 
     def __init__(
         self,
-        root: Union[str, Path],
+        root: str,
         split: str = "train",
         calibration: Optional[str] = "perfect",
         use_ambient_views: bool = False,
         transforms: Optional[Callable] = None,
         download: bool = False,
-    ) -> None:
+    ):
         super().__init__(root, transforms)
 
         verify_str_arg(split, "split", valid_values=("train", "test", "additional"))
@@ -565,7 +558,7 @@ class Middlebury2014Stereo(StereoMatchingDataset):
             file_path = random.choice(ambient_file_paths)  # type: ignore
         return super()._read_img(file_path)
 
-    def _read_disparity(self, file_path: str) -> Union[Tuple[None, None], Tuple[np.ndarray, np.ndarray]]:
+    def _read_disparity(self, file_path: str) -> Tuple:
         # test split has not disparity maps
         if file_path is None:
             return None, None
@@ -576,7 +569,7 @@ class Middlebury2014Stereo(StereoMatchingDataset):
         valid_mask = (disparity_map > 0).squeeze(0)  # mask out invalid disparities
         return disparity_map, valid_mask
 
-    def _download_dataset(self, root: Union[str, Path]) -> None:
+    def _download_dataset(self, root: str):
         base_url = "https://vision.middlebury.edu/stereo/data/scenes2014/zip"
         # train and additional splits have 2 different calibration settings
         root = Path(root) / "Middlebury2014"
@@ -615,7 +608,7 @@ class Middlebury2014Stereo(StereoMatchingDataset):
                 # cleanup MiddEval3 directory
                 shutil.rmtree(str(root / "MiddEval3"))
 
-    def __getitem__(self, index: int) -> T2:
+    def __getitem__(self, index: int) -> Tuple:
         """Return example at given index.
 
         Args:
@@ -626,7 +619,7 @@ class Middlebury2014Stereo(StereoMatchingDataset):
             The disparity is a numpy array of shape (1, H, W) and the images are PIL images.
             ``valid_mask`` is implicitly ``None`` for `split=test`.
         """
-        return cast(T2, super().__getitem__(index))
+        return super().__getitem__(index)
 
 
 class CREStereo(StereoMatchingDataset):
@@ -675,9 +668,9 @@ class CREStereo(StereoMatchingDataset):
 
     def __init__(
         self,
-        root: Union[str, Path],
+        root: str,
         transforms: Optional[Callable] = None,
-    ) -> None:
+    ):
         super().__init__(root, transforms)
 
         root = Path(root) / "CREStereo"
@@ -695,14 +688,14 @@ class CREStereo(StereoMatchingDataset):
             disparities = self._scan_pairs(left_disparity_pattern, right_disparity_pattern)
             self._disparities += disparities
 
-    def _read_disparity(self, file_path: str) -> Tuple[np.ndarray, None]:
+    def _read_disparity(self, file_path: str) -> Tuple:
         disparity_map = np.asarray(Image.open(file_path), dtype=np.float32)
         # unsqueeze the disparity map into (C, H, W) format
         disparity_map = disparity_map[None, :, :] / 32.0
         valid_mask = None
         return disparity_map, valid_mask
 
-    def __getitem__(self, index: int) -> T1:
+    def __getitem__(self, index: int) -> Tuple:
         """Return example at given index.
 
         Args:
@@ -714,13 +707,13 @@ class CREStereo(StereoMatchingDataset):
             ``valid_mask`` is implicitly ``None`` if the ``transforms`` parameter does not
             generate a valid mask.
         """
-        return cast(T1, super().__getitem__(index))
+        return super().__getitem__(index)
 
 
 class FallingThingsStereo(StereoMatchingDataset):
     """`FallingThings <https://research.nvidia.com/publication/2018-06_falling-things-synthetic-dataset-3d-object-detection-and-pose-estimation>`_ dataset.
 
-    The dataset is expected to have the following structure: ::
+    The dataset is expected to have the following structre: ::
 
         root
             FallingThings
@@ -757,12 +750,12 @@ class FallingThingsStereo(StereoMatchingDataset):
                     ...
 
     Args:
-        root (str or ``pathlib.Path``): Root directory where FallingThings is located.
+        root (string): Root directory where FallingThings is located.
         variant (string): Which variant to use. Either "single", "mixed", or "both".
         transforms (callable, optional): A function/transform that takes in a sample and returns a transformed version.
     """
 
-    def __init__(self, root: Union[str, Path], variant: str = "single", transforms: Optional[Callable] = None) -> None:
+    def __init__(self, root: str, variant: str = "single", transforms: Optional[Callable] = None):
         super().__init__(root, transforms)
 
         root = Path(root) / "FallingThings"
@@ -789,14 +782,14 @@ class FallingThingsStereo(StereoMatchingDataset):
             right_disparity_pattern = str(root / s / split_prefix[s] / "*.right.depth.png")
             self._disparities += self._scan_pairs(left_disparity_pattern, right_disparity_pattern)
 
-    def _read_disparity(self, file_path: str) -> Tuple[np.ndarray, None]:
+    def _read_disparity(self, file_path: str) -> Tuple:
         # (H, W) image
         depth = np.asarray(Image.open(file_path))
         # as per https://research.nvidia.com/sites/default/files/pubs/2018-06_Falling-Things/readme_0.txt
         # in order to extract disparity from depth maps
         camera_settings_path = Path(file_path).parent / "_camera_settings.json"
         with open(camera_settings_path, "r") as f:
-            # inverse of depth-from-disparity equation: depth = (baseline * focal) / (disparity * pixel_constant)
+            # inverse of depth-from-disparity equation: depth = (baseline * focal) / (disparity * pixel_constatnt)
             intrinsics = json.load(f)
             focal = intrinsics["camera_settings"][0]["intrinsic_settings"]["fx"]
             baseline, pixel_constant = 6, 100  # pixel constant is inverted
@@ -806,7 +799,7 @@ class FallingThingsStereo(StereoMatchingDataset):
             valid_mask = None
             return disparity_map, valid_mask
 
-    def __getitem__(self, index: int) -> T1:
+    def __getitem__(self, index: int) -> Tuple:
         """Return example at given index.
 
         Args:
@@ -818,14 +811,14 @@ class FallingThingsStereo(StereoMatchingDataset):
             If a ``valid_mask`` is generated within the ``transforms`` parameter,
             a 4-tuple with ``(img_left, img_right, disparity, valid_mask)`` is returned.
         """
-        return cast(T1, super().__getitem__(index))
+        return super().__getitem__(index)
 
 
 class SceneFlowStereo(StereoMatchingDataset):
     """Dataset interface for `Scene Flow <https://lmb.informatik.uni-freiburg.de/resources/datasets/SceneFlowDatasets.en.html>`_ datasets.
     This interface provides access to the `FlyingThings3D, `Monkaa` and `Driving` datasets.
 
-    The dataset is expected to have the following structure: ::
+    The dataset is expected to have the following structre: ::
 
         root
             SceneFlow
@@ -868,7 +861,7 @@ class SceneFlowStereo(StereoMatchingDataset):
                     ...
 
     Args:
-        root (str or ``pathlib.Path``): Root directory where SceneFlow is located.
+        root (string): Root directory where SceneFlow is located.
         variant (string): Which dataset variant to user, "FlyingThings3D" (default), "Monkaa" or "Driving".
         pass_name (string): Which pass to use, "clean" (default), "final" or "both".
         transforms (callable, optional): A function/transform that takes in a sample and returns a transformed version.
@@ -877,11 +870,11 @@ class SceneFlowStereo(StereoMatchingDataset):
 
     def __init__(
         self,
-        root: Union[str, Path],
+        root: str,
         variant: str = "FlyingThings3D",
         pass_name: str = "clean",
         transforms: Optional[Callable] = None,
-    ) -> None:
+    ):
         super().__init__(root, transforms)
 
         root = Path(root) / "SceneFlow"
@@ -912,13 +905,13 @@ class SceneFlowStereo(StereoMatchingDataset):
             right_disparity_pattern = str(root / "disparity" / prefix_directories[variant] / "right" / "*.pfm")
             self._disparities += self._scan_pairs(left_disparity_pattern, right_disparity_pattern)
 
-    def _read_disparity(self, file_path: str) -> Tuple[np.ndarray, None]:
+    def _read_disparity(self, file_path: str) -> Tuple:
         disparity_map = _read_pfm_file(file_path)
         disparity_map = np.abs(disparity_map)  # ensure that the disparity is positive
         valid_mask = None
         return disparity_map, valid_mask
 
-    def __getitem__(self, index: int) -> T1:
+    def __getitem__(self, index: int) -> Tuple:
         """Return example at given index.
 
         Args:
@@ -930,7 +923,7 @@ class SceneFlowStereo(StereoMatchingDataset):
             If a ``valid_mask`` is generated within the ``transforms`` parameter,
             a 4-tuple with ``(img_left, img_right, disparity, valid_mask)`` is returned.
         """
-        return cast(T1, super().__getitem__(index))
+        return super().__getitem__(index)
 
 
 class SintelStereo(StereoMatchingDataset):
@@ -973,14 +966,14 @@ class SintelStereo(StereoMatchingDataset):
                         ...
 
     Args:
-        root (str or ``pathlib.Path``): Root directory where Sintel Stereo is located.
+        root (string): Root directory where Sintel Stereo is located.
         pass_name (string): The name of the pass to use, either "final", "clean" or "both".
         transforms (callable, optional): A function/transform that takes in a sample and returns a transformed version.
     """
 
     _has_built_in_disparity_mask = True
 
-    def __init__(self, root: Union[str, Path], pass_name: str = "final", transforms: Optional[Callable] = None) -> None:
+    def __init__(self, root: str, pass_name: str = "final", transforms: Optional[Callable] = None):
         super().__init__(root, transforms)
 
         verify_str_arg(pass_name, "pass_name", valid_values=("final", "clean", "both"))
@@ -1021,7 +1014,7 @@ class SintelStereo(StereoMatchingDataset):
 
         return occlusion_path, outofframe_path
 
-    def _read_disparity(self, file_path: str) -> Union[Tuple[None, None], Tuple[np.ndarray, np.ndarray]]:
+    def _read_disparity(self, file_path: str) -> Tuple:
         if file_path is None:
             return None, None
 
@@ -1031,7 +1024,7 @@ class SintelStereo(StereoMatchingDataset):
         disparity_map = r * 4 + g / (2**6) + b / (2**14)
         # reshape into (C, H, W) format
         disparity_map = np.transpose(disparity_map, (2, 0, 1))
-        # find the appropriate file paths
+        # find the appropiate file paths
         occlued_mask_path, out_of_frame_mask_path = self._get_occlussion_mask_paths(file_path)
         # occlusion masks
         valid_mask = np.asarray(Image.open(occlued_mask_path)) == 0
@@ -1041,7 +1034,7 @@ class SintelStereo(StereoMatchingDataset):
         valid_mask = np.logical_and(off_mask, valid_mask)
         return disparity_map, valid_mask
 
-    def __getitem__(self, index: int) -> T2:
+    def __getitem__(self, index: int) -> Tuple:
         """Return example at given index.
 
         Args:
@@ -1052,13 +1045,13 @@ class SintelStereo(StereoMatchingDataset):
             The disparity is a numpy array of shape (1, H, W) and the images are PIL images whilst
             the valid_mask is a numpy array of shape (H, W).
         """
-        return cast(T2, super().__getitem__(index))
+        return super().__getitem__(index)
 
 
 class InStereo2k(StereoMatchingDataset):
     """`InStereo2k <https://github.com/YuhuaXu/StereoDataset>`_ dataset.
 
-    The dataset is expected to have the following structure: ::
+    The dataset is expected to have the following structre: ::
 
         root
             InStereo2k
@@ -1082,12 +1075,12 @@ class InStereo2k(StereoMatchingDataset):
                     ...
 
     Args:
-        root (str or ``pathlib.Path``): Root directory where InStereo2k is located.
+        root (string): Root directory where InStereo2k is located.
         split (string): Either "train" or "test".
         transforms (callable, optional): A function/transform that takes in a sample and returns a transformed version.
     """
 
-    def __init__(self, root: Union[str, Path], split: str = "train", transforms: Optional[Callable] = None) -> None:
+    def __init__(self, root: str, split: str = "train", transforms: Optional[Callable] = None):
         super().__init__(root, transforms)
 
         root = Path(root) / "InStereo2k" / split
@@ -1102,14 +1095,14 @@ class InStereo2k(StereoMatchingDataset):
         right_disparity_pattern = str(root / "*" / "right_disp.png")
         self._disparities = self._scan_pairs(left_disparity_pattern, right_disparity_pattern)
 
-    def _read_disparity(self, file_path: str) -> Tuple[np.ndarray, None]:
+    def _read_disparity(self, file_path: str) -> Tuple:
         disparity_map = np.asarray(Image.open(file_path), dtype=np.float32)
         # unsqueeze disparity to (C, H, W)
         disparity_map = disparity_map[None, :, :] / 1024.0
         valid_mask = None
         return disparity_map, valid_mask
 
-    def __getitem__(self, index: int) -> T1:
+    def __getitem__(self, index: int) -> Tuple:
         """Return example at given index.
 
         Args:
@@ -1121,7 +1114,7 @@ class InStereo2k(StereoMatchingDataset):
             If a ``valid_mask`` is generated within the ``transforms`` parameter,
             a 4-tuple with ``(img_left, img_right, disparity, valid_mask)`` is returned.
         """
-        return cast(T1, super().__getitem__(index))
+        return super().__getitem__(index)
 
 
 class ETH3DStereo(StereoMatchingDataset):
@@ -1169,14 +1162,14 @@ class ETH3DStereo(StereoMatchingDataset):
                     ...
 
     Args:
-        root (str or ``pathlib.Path``): Root directory of the ETH3D Dataset.
+        root (string): Root directory of the ETH3D Dataset.
         split (string, optional): The dataset split of scenes, either "train" (default) or "test".
         transforms (callable, optional): A function/transform that takes in a sample and returns a transformed version.
     """
 
     _has_built_in_disparity_mask = True
 
-    def __init__(self, root: Union[str, Path], split: str = "train", transforms: Optional[Callable] = None) -> None:
+    def __init__(self, root: str, split: str = "train", transforms: Optional[Callable] = None):
         super().__init__(root, transforms)
 
         verify_str_arg(split, "split", valid_values=("train", "test"))
@@ -1196,7 +1189,7 @@ class ETH3DStereo(StereoMatchingDataset):
             disparity_pattern = str(root / anot_dir / "*" / "disp0GT.pfm")
             self._disparities = self._scan_pairs(disparity_pattern, None)
 
-    def _read_disparity(self, file_path: str) -> Union[Tuple[None, None], Tuple[np.ndarray, np.ndarray]]:
+    def _read_disparity(self, file_path: str) -> Tuple:
         # test split has no disparity maps
         if file_path is None:
             return None, None
@@ -1208,7 +1201,7 @@ class ETH3DStereo(StereoMatchingDataset):
         valid_mask = np.asarray(valid_mask).astype(bool)
         return disparity_map, valid_mask
 
-    def __getitem__(self, index: int) -> T2:
+    def __getitem__(self, index: int) -> Tuple:
         """Return example at given index.
 
         Args:
@@ -1221,4 +1214,4 @@ class ETH3DStereo(StereoMatchingDataset):
             generate a valid mask.
             Both ``disparity`` and ``valid_mask`` are ``None`` if the dataset split is test.
         """
-        return cast(T2, super().__getitem__(index))
+        return super().__getitem__(index)

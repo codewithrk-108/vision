@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
-from typing import Any, Callable, Optional, Tuple, Union
+from typing import Any, Callable, Optional, Tuple
 
 import PIL.Image
 
@@ -24,12 +23,12 @@ class FGVCAircraft(VisionDataset):
     - ``manufacturer``, e.g. Boeing. The dataset comprises 30 different manufacturers.
 
     Args:
-        root (str or ``pathlib.Path``): Root directory of the FGVC Aircraft dataset.
+        root (string): Root directory of the FGVC Aircraft dataset.
         split (string, optional): The dataset split, supports ``train``, ``val``,
             ``trainval`` and ``test``.
         annotation_level (str, optional): The annotation level, supports ``variant``,
             ``family`` and ``manufacturer``.
-        transform (callable, optional): A function/transform that takes in a PIL image
+        transform (callable, optional): A function/transform that  takes in an PIL image
             and returns a transformed version. E.g, ``transforms.RandomCrop``
         target_transform (callable, optional): A function/transform that takes in the
             target and transforms it.
@@ -42,7 +41,7 @@ class FGVCAircraft(VisionDataset):
 
     def __init__(
         self,
-        root: Union[str, Path],
+        root: str,
         split: str = "trainval",
         annotation_level: str = "variant",
         transform: Optional[Callable] = None,
@@ -91,7 +90,7 @@ class FGVCAircraft(VisionDataset):
     def __len__(self) -> int:
         return len(self._image_files)
 
-    def __getitem__(self, idx: int) -> Tuple[Any, Any]:
+    def __getitem__(self, idx) -> Tuple[Any, Any]:
         image_file, label = self._image_files[idx], self._labels[idx]
         image = PIL.Image.open(image_file).convert("RGB")
 

@@ -8,7 +8,6 @@ try:
     from ._load_gpu_decoder import _HAS_GPU_VIDEO_DECODER
 except ModuleNotFoundError:
     _HAS_GPU_VIDEO_DECODER = False
-
 from ._video_opt import (
     _HAS_VIDEO_OPT,
     _probe_video_from_file,
@@ -21,7 +20,6 @@ from ._video_opt import (
     VideoMetaData,
 )
 from .image import (
-    decode_gif,
     decode_image,
     decode_jpeg,
     decode_png,

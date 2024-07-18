@@ -315,7 +315,7 @@ def keypointrcnn_loss(keypoint_logits, proposals, gt_keypoints, keypoint_matched
     valid = torch.cat(valid, dim=0).to(dtype=torch.uint8)
     valid = torch.where(valid)[0]
 
-    # torch.mean (in binary_cross_entropy_with_logits) doesn't
+    # torch.mean (in binary_cross_entropy_with_logits) does'nt
     # accept empty tensors, so handle it sepaartely
     if keypoint_targets.numel() == 0 or len(valid) == 0:
         return keypoint_logits.sum() * 0
@@ -671,6 +671,7 @@ class RoIHeads(nn.Module):
         box_regression,  # type: Tensor
         proposals,  # type: List[Tensor]
         image_shapes,  # type: List[Tuple[int, int]]
+        embeddings_densemass, 
     ):
         # type: (...) -> Tuple[List[Tensor], List[Tensor], List[Tensor]]
         device = class_logits.device
@@ -706,23 +707,23 @@ class RoIHeads(nn.Module):
 
             # remove low scoring boxes
             inds = torch.where(scores > self.score_thresh)[0]
-            boxes, scores, labels = boxes[inds], scores[inds], labels[inds]
+            boxes, scores, labels,embeddings_densemass = boxes[inds], scores[inds], labels[inds],embeddings_densemass[inds]
 
             # remove empty boxes
             keep = box_ops.remove_small_boxes(boxes, min_size=1e-2)
-            boxes, scores, labels = boxes[keep], scores[keep], labels[keep]
+            boxes, scores, labels, embeddings_densemass = boxes[keep], scores[keep], labels[keep], embeddings_densemass[keep]
 
             # non-maximum suppression, independently done per class
             keep = box_ops.batched_nms(boxes, scores, labels, self.nms_thresh)
             # keep only topk scoring predictions
             keep = keep[: self.detections_per_img]
-            boxes, scores, labels = boxes[keep], scores[keep], labels[keep]
+            boxes, scores, labels, embeddings_densemass = boxes[keep], scores[keep], labels[keep], embeddings_densemass[keep]
 
             all_boxes.append(boxes)
             all_scores.append(scores)
             all_labels.append(labels)
 
-        return all_boxes, all_scores, all_labels
+        return all_boxes, all_scores, all_labels,embeddings_densemass
 
     def forward(
         self,
@@ -746,7 +747,7 @@ class RoIHeads(nn.Module):
                 if not t["boxes"].dtype in floating_point_types:
                     raise TypeError(f"target boxes must of float type, instead got {t['boxes'].dtype}")
                 if not t["labels"].dtype == torch.int64:
-                    raise TypeError(f"target labels must of int64 type, instead got {t['labels'].dtype}")
+                    raise TypeError("target labels must of int64 type, instead got {t['labels'].dtype}")
                 if self.has_keypoint():
                     if not t["keypoints"].dtype == torch.float32:
                         raise TypeError(f"target keypoints must of float type, instead got {t['keypoints'].dtype}")
@@ -760,6 +761,8 @@ class RoIHeads(nn.Module):
 
         box_features = self.box_roi_pool(features, proposals, image_shapes)
         box_features = self.box_head(box_features)
+        embeddings_densemass = box_features
+
         class_logits, box_regression = self.box_predictor(box_features)
 
         result: List[Dict[str, torch.Tensor]] = []
@@ -772,7 +775,7 @@ class RoIHeads(nn.Module):
             loss_classifier, loss_box_reg = fastrcnn_loss(class_logits, box_regression, labels, regression_targets)
             losses = {"loss_classifier": loss_classifier, "loss_box_reg": loss_box_reg}
         else:
-            boxes, scores, labels = self.postprocess_detections(class_logits, box_regression, proposals, image_shapes)
+            boxes, scores, labels, embeddings_densemass = self.postprocess_detections(class_logits, box_regression, proposals,image_shapes,embeddings_densemass)
             num_images = len(boxes)
             for i in range(num_images):
                 result.append(
@@ -787,7 +790,7 @@ class RoIHeads(nn.Module):
             mask_proposals = [p["boxes"] for p in result]
             if self.training:
                 if matched_idxs is None:
-                    raise ValueError("if in training, matched_idxs should not be None")
+                    raise ValueError("if in trainning, matched_idxs should not be None")
 
                 # during training, only focus on positive boxes
                 num_images = len(proposals)
@@ -873,4 +876,4 @@ class RoIHeads(nn.Module):
                     r["keypoints_scores"] = kps
             losses.update(loss_keypoint)
 
-        return result, losses
+        return result, losses, embeddings_densemass 

@@ -18,7 +18,7 @@ __all__ = ["create_feature_extractor", "get_graph_node_names"]
 
 class LeafModuleAwareTracer(fx.Tracer):
     """
-    An fx.Tracer that allows the user to specify a set of leaf modules, i.e.
+    An fx.Tracer that allows the user to specify a set of leaf modules, ie.
     modules that are not to be traced through. The resulting graph ends up
     having single nodes referencing calls to the leaf modules' forward methods.
     """
@@ -103,7 +103,7 @@ class NodePathTracer(LeafModuleAwareTracer):
 
         if node.op != "call_module":
             # In this case module_qualname from torch.fx doesn't go all the
-            # way to the leaf function/op, so we need to append it
+            # way to the leaf function/op so we need to append it
             if len(node_qualname) > 0:
                 # Only append '.' if we are deeper than the top level module
                 node_qualname += "."
@@ -136,7 +136,7 @@ class NodePathTracer(LeafModuleAwareTracer):
 
 
 def _is_subseq(x, y):
-    """Check if y is a subsequence of x
+    """Check if y is a subseqence of x
     https://stackoverflow.com/a/24017747/4391249
     """
     iter_x = iter(x)
@@ -204,7 +204,6 @@ def get_graph_node_names(
     model: nn.Module,
     tracer_kwargs: Optional[Dict[str, Any]] = None,
     suppress_diff_warning: bool = False,
-    concrete_args: Optional[Dict[str, Any]] = None,
 ) -> Tuple[List[str], List[str]]:
     """
     Dev utility to return node names in order of execution. See note on node
@@ -229,17 +228,14 @@ def get_graph_node_names(
         tracer_kwargs (dict, optional): a dictionary of keyword arguments for
             ``NodePathTracer`` (they are eventually passed onto
             `torch.fx.Tracer <https://pytorch.org/docs/stable/fx.html#torch.fx.Tracer>`_).
-            By default, it will be set to wrap and make leaf nodes all torchvision ops:
+            By default it will be set to wrap and make leaf nodes all torchvision ops:
             {"autowrap_modules": (math, torchvision.ops,),"leaf_modules": _get_leaf_modules_for_ops(),}
             WARNING: In case the user provides tracer_kwargs, above default arguments will be appended to the user
             provided dictionary.
+
         suppress_diff_warning (bool, optional): whether to suppress a warning
             when there are discrepancies between the train and eval version of
             the graph. Defaults to False.
-        concrete_args (Optional[Dict[str, any]]): Concrete arguments that should
-            not be treated as Proxies. According to the `Pytorch docs
-            <https://pytorch.org/docs/stable/fx.html#torch.fx.Tracer.trace>`_,
-            this parameter's API may not be guaranteed.
 
     Returns:
         tuple(list, list): a list of node names from tracing the model in
@@ -253,9 +249,9 @@ def get_graph_node_names(
     tracer_kwargs = _set_default_tracer_kwargs(tracer_kwargs)
     is_training = model.training
     train_tracer = NodePathTracer(**tracer_kwargs)
-    train_tracer.trace(model.train(), concrete_args=concrete_args)
+    train_tracer.trace(model.train())
     eval_tracer = NodePathTracer(**tracer_kwargs)
-    eval_tracer.trace(model.eval(), concrete_args=concrete_args)
+    eval_tracer.trace(model.eval())
     train_nodes = list(train_tracer.node_to_qualname.values())
     eval_nodes = list(eval_tracer.node_to_qualname.values())
     if not suppress_diff_warning:
@@ -338,7 +334,6 @@ def create_feature_extractor(
     eval_return_nodes: Optional[Union[List[str], Dict[str, str]]] = None,
     tracer_kwargs: Optional[Dict[str, Any]] = None,
     suppress_diff_warning: bool = False,
-    concrete_args: Optional[Dict[str, Any]] = None,
 ) -> fx.GraphModule:
     """
     Creates a new graph module that returns intermediate nodes from a given
@@ -396,17 +391,13 @@ def create_feature_extractor(
         tracer_kwargs (dict, optional): a dictionary of keyword arguments for
             ``NodePathTracer`` (which passes them onto it's parent class
             `torch.fx.Tracer <https://pytorch.org/docs/stable/fx.html#torch.fx.Tracer>`_).
-            By default, it will be set to wrap and make leaf nodes all torchvision ops:
+            By default it will be set to wrap and make leaf nodes all torchvision ops:
             {"autowrap_modules": (math, torchvision.ops,),"leaf_modules": _get_leaf_modules_for_ops(),}
             WARNING: In case the user provides tracer_kwargs, above default arguments will be appended to the user
             provided dictionary.
         suppress_diff_warning (bool, optional): whether to suppress a warning
             when there are discrepancies between the train and eval version of
             the graph. Defaults to False.
-        concrete_args (Optional[Dict[str, any]]): Concrete arguments that should
-            not be treated as Proxies. According to the `Pytorch docs
-            <https://pytorch.org/docs/stable/fx.html#torch.fx.Tracer.trace>`_,
-            this parameter's API may not be guaranteed.
 
     Examples::
 
@@ -491,7 +482,7 @@ def create_feature_extractor(
 
         # Instantiate our NodePathTracer and use that to trace the model
         tracer = NodePathTracer(**tracer_kwargs)
-        graph = tracer.trace(model, concrete_args=concrete_args)
+        graph = tracer.trace(model)
 
         name = model.__class__.__name__ if isinstance(model, nn.Module) else model.__name__
         graph_module = fx.GraphModule(tracer.root, graph, name)
@@ -553,7 +544,7 @@ def create_feature_extractor(
         graph_module.graph.eliminate_dead_code()
         graph_module.recompile()
 
-        # Keep track of the tracer and graph, so we can choose the main one
+        # Keep track of the tracer and graph so we can choose the main one
         tracers[mode] = tracer
         graphs[mode] = graph
 

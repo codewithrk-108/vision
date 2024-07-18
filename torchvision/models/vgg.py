@@ -102,7 +102,7 @@ def _vgg(cfg: str, batch_norm: bool, weights: Optional[WeightsEnum], progress: b
             _ovewrite_named_param(kwargs, "num_classes", len(weights.meta["categories"]))
     model = VGG(make_layers(cfgs[cfg], batch_norm=batch_norm), **kwargs)
     if weights is not None:
-        model.load_state_dict(weights.get_state_dict(progress=progress, check_hash=True))
+        model.load_state_dict(weights.get_state_dict(progress=progress))
     return model
 
 
@@ -127,8 +127,6 @@ class VGG11_Weights(WeightsEnum):
                     "acc@5": 88.628,
                 }
             },
-            "_ops": 7.609,
-            "_file_size": 506.84,
         },
     )
     DEFAULT = IMAGENET1K_V1
@@ -147,8 +145,6 @@ class VGG11_BN_Weights(WeightsEnum):
                     "acc@5": 89.810,
                 }
             },
-            "_ops": 7.609,
-            "_file_size": 506.881,
         },
     )
     DEFAULT = IMAGENET1K_V1
@@ -167,8 +163,6 @@ class VGG13_Weights(WeightsEnum):
                     "acc@5": 89.246,
                 }
             },
-            "_ops": 11.308,
-            "_file_size": 507.545,
         },
     )
     DEFAULT = IMAGENET1K_V1
@@ -187,8 +181,6 @@ class VGG13_BN_Weights(WeightsEnum):
                     "acc@5": 90.374,
                 }
             },
-            "_ops": 11.308,
-            "_file_size": 507.59,
         },
     )
     DEFAULT = IMAGENET1K_V1
@@ -207,8 +199,6 @@ class VGG16_Weights(WeightsEnum):
                     "acc@5": 90.382,
                 }
             },
-            "_ops": 15.47,
-            "_file_size": 527.796,
         },
     )
     IMAGENET1K_FEATURES = Weights(
@@ -231,8 +221,6 @@ class VGG16_Weights(WeightsEnum):
                     "acc@5": float("nan"),
                 }
             },
-            "_ops": 15.47,
-            "_file_size": 527.802,
             "_docs": """
                 These weights can't be used for classification because they are missing values in the `classifier`
                 module. Only the `features` module has valid values and can be used for feature extraction. The weights
@@ -256,8 +244,6 @@ class VGG16_BN_Weights(WeightsEnum):
                     "acc@5": 91.516,
                 }
             },
-            "_ops": 15.47,
-            "_file_size": 527.866,
         },
     )
     DEFAULT = IMAGENET1K_V1
@@ -276,8 +262,6 @@ class VGG19_Weights(WeightsEnum):
                     "acc@5": 90.876,
                 }
             },
-            "_ops": 19.632,
-            "_file_size": 548.051,
         },
     )
     DEFAULT = IMAGENET1K_V1
@@ -296,8 +280,6 @@ class VGG19_BN_Weights(WeightsEnum):
                     "acc@5": 91.842,
                 }
             },
-            "_ops": 19.632,
-            "_file_size": 548.143,
         },
     )
     DEFAULT = IMAGENET1K_V1
@@ -509,3 +491,21 @@ def vgg19_bn(*, weights: Optional[VGG19_BN_Weights] = None, progress: bool = Tru
     weights = VGG19_BN_Weights.verify(weights)
 
     return _vgg("E", True, weights, progress, **kwargs)
+
+
+# The dictionary below is internal implementation detail and will be removed in v0.15
+from ._utils import _ModelURLs
+
+
+model_urls = _ModelURLs(
+    {
+        "vgg11": VGG11_Weights.IMAGENET1K_V1.url,
+        "vgg13": VGG13_Weights.IMAGENET1K_V1.url,
+        "vgg16": VGG16_Weights.IMAGENET1K_V1.url,
+        "vgg19": VGG19_Weights.IMAGENET1K_V1.url,
+        "vgg11_bn": VGG11_BN_Weights.IMAGENET1K_V1.url,
+        "vgg13_bn": VGG13_BN_Weights.IMAGENET1K_V1.url,
+        "vgg16_bn": VGG16_BN_Weights.IMAGENET1K_V1.url,
+        "vgg19_bn": VGG19_BN_Weights.IMAGENET1K_V1.url,
+    }
+)

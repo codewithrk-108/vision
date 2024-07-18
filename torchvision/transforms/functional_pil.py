@@ -1,14 +1,16 @@
 import numbers
-from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import torch
 from PIL import Image, ImageEnhance, ImageOps
+from typing_extensions import Literal
 
 try:
     import accimage
 except ImportError:
     accimage = None
+from . import _pil_constants
 
 
 @torch.jit.unused
@@ -53,7 +55,7 @@ def hflip(img: Image.Image) -> Image.Image:
     if not _is_pil_image(img):
         raise TypeError(f"img should be PIL Image. Got {type(img)}")
 
-    return img.transpose(Image.FLIP_LEFT_RIGHT)
+    return img.transpose(_pil_constants.FLIP_LEFT_RIGHT)
 
 
 @torch.jit.unused
@@ -61,7 +63,7 @@ def vflip(img: Image.Image) -> Image.Image:
     if not _is_pil_image(img):
         raise TypeError(f"img should be PIL Image. Got {type(img)}")
 
-    return img.transpose(Image.FLIP_TOP_BOTTOM)
+    return img.transpose(_pil_constants.FLIP_TOP_BOTTOM)
 
 
 @torch.jit.unused
@@ -109,9 +111,9 @@ def adjust_hue(img: Image.Image, hue_factor: float) -> Image.Image:
     h, s, v = img.convert("HSV").split()
 
     np_h = np.array(h, dtype=np.uint8)
-    # This will over/underflow, as desired
-    np_h += np.array(hue_factor * 255).astype(np.uint8)
-
+    # uint8 addition take cares of rotation across boundaries
+    with np.errstate(over="ignore"):
+        np_h += np.uint8(hue_factor * 255)
     h = Image.fromarray(np_h, "L")
 
     img = Image.merge("HSV", (h, s, v)).convert(input_mode)
@@ -239,7 +241,7 @@ def crop(
 def resize(
     img: Image.Image,
     size: Union[List[int], int],
-    interpolation: int = Image.BILINEAR,
+    interpolation: int = _pil_constants.BILINEAR,
 ) -> Image.Image:
 
     if not _is_pil_image(img):
@@ -264,13 +266,11 @@ def _parse_fill(
     if isinstance(fill, (int, float)) and num_channels > 1:
         fill = tuple([fill] * num_channels)
     if isinstance(fill, (list, tuple)):
-        if len(fill) == 1:
-            fill = fill * num_channels
-        elif len(fill) != num_channels:
+        if len(fill) != num_channels:
             msg = "The number of elements in 'fill' does not match the number of channels of the image ({} != {})"
             raise ValueError(msg.format(len(fill), num_channels))
 
-        fill = tuple(fill)  # type: ignore[arg-type]
+        fill = tuple(fill)
 
     if img.mode != "F":
         if isinstance(fill, (list, tuple)):
@@ -285,7 +285,7 @@ def _parse_fill(
 def affine(
     img: Image.Image,
     matrix: List[float],
-    interpolation: int = Image.NEAREST,
+    interpolation: int = _pil_constants.NEAREST,
     fill: Optional[Union[int, float, Sequence[int], Sequence[float]]] = None,
 ) -> Image.Image:
 
@@ -294,14 +294,14 @@ def affine(
 
     output_size = img.size
     opts = _parse_fill(fill, img)
-    return img.transform(output_size, Image.AFFINE, matrix, interpolation, **opts)
+    return img.transform(output_size, _pil_constants.AFFINE, matrix, interpolation, **opts)
 
 
 @torch.jit.unused
 def rotate(
     img: Image.Image,
     angle: float,
-    interpolation: int = Image.NEAREST,
+    interpolation: int = _pil_constants.NEAREST,
     expand: bool = False,
     center: Optional[Tuple[int, int]] = None,
     fill: Optional[Union[int, float, Sequence[int], Sequence[float]]] = None,
@@ -318,7 +318,7 @@ def rotate(
 def perspective(
     img: Image.Image,
     perspective_coeffs: List[float],
-    interpolation: int = Image.BICUBIC,
+    interpolation: int = _pil_constants.BICUBIC,
     fill: Optional[Union[int, float, Sequence[int], Sequence[float]]] = None,
 ) -> Image.Image:
 
@@ -327,7 +327,7 @@ def perspective(
 
     opts = _parse_fill(fill, img)
 
-    return img.transform(img.size, Image.PERSPECTIVE, perspective_coeffs, interpolation, **opts)
+    return img.transform(img.size, _pil_constants.PERSPECTIVE, perspective_coeffs, interpolation, **opts)
 
 
 @torch.jit.unused

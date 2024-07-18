@@ -44,7 +44,6 @@ class ImageClassification(nn.Module):
         mean: Tuple[float, ...] = (0.485, 0.456, 0.406),
         std: Tuple[float, ...] = (0.229, 0.224, 0.225),
         interpolation: InterpolationMode = InterpolationMode.BILINEAR,
-        antialias: Optional[bool] = True,
     ) -> None:
         super().__init__()
         self.crop_size = [crop_size]
@@ -52,10 +51,9 @@ class ImageClassification(nn.Module):
         self.mean = list(mean)
         self.std = list(std)
         self.interpolation = interpolation
-        self.antialias = antialias
 
     def forward(self, img: Tensor) -> Tensor:
-        img = F.resize(img, self.resize_size, interpolation=self.interpolation, antialias=self.antialias)
+        img = F.resize(img, self.resize_size, interpolation=self.interpolation)
         img = F.center_crop(img, self.crop_size)
         if not isinstance(img, Tensor):
             img = F.pil_to_tensor(img)
@@ -107,11 +105,7 @@ class VideoClassification(nn.Module):
 
         N, T, C, H, W = vid.shape
         vid = vid.view(-1, C, H, W)
-        # We hard-code antialias=False to preserve results after we changed
-        # its default from None to True (see
-        # https://github.com/pytorch/vision/pull/7160)
-        # TODO: we could re-train the video models with antialias=True?
-        vid = F.resize(vid, self.resize_size, interpolation=self.interpolation, antialias=False)
+        vid = F.resize(vid, self.resize_size, interpolation=self.interpolation)
         vid = F.center_crop(vid, self.crop_size)
         vid = F.convert_image_dtype(vid, torch.float)
         vid = F.normalize(vid, mean=self.mean, std=self.std)
@@ -151,18 +145,16 @@ class SemanticSegmentation(nn.Module):
         mean: Tuple[float, ...] = (0.485, 0.456, 0.406),
         std: Tuple[float, ...] = (0.229, 0.224, 0.225),
         interpolation: InterpolationMode = InterpolationMode.BILINEAR,
-        antialias: Optional[bool] = True,
     ) -> None:
         super().__init__()
         self.resize_size = [resize_size] if resize_size is not None else None
         self.mean = list(mean)
         self.std = list(std)
         self.interpolation = interpolation
-        self.antialias = antialias
 
     def forward(self, img: Tensor) -> Tensor:
         if isinstance(self.resize_size, list):
-            img = F.resize(img, self.resize_size, interpolation=self.interpolation, antialias=self.antialias)
+            img = F.resize(img, self.resize_size, interpolation=self.interpolation)
         if not isinstance(img, Tensor):
             img = F.pil_to_tensor(img)
         img = F.convert_image_dtype(img, torch.float)

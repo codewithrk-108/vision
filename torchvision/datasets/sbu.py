@@ -1,10 +1,9 @@
 import os
-from pathlib import Path
-from typing import Any, Callable, Optional, Tuple, Union
+from typing import Any, Callable, Optional, Tuple
 
 from PIL import Image
 
-from .utils import check_integrity, download_and_extract_archive, download_url
+from .utils import check_integrity, download_url
 from .vision import VisionDataset
 
 
@@ -12,7 +11,7 @@ class SBU(VisionDataset):
     """`SBU Captioned Photo <http://www.cs.virginia.edu/~vicente/sbucaptions/>`_ Dataset.
 
     Args:
-        root (str or ``pathlib.Path``): Root directory of dataset where tarball
+        root (string): Root directory of dataset where tarball
             ``SBUCaptionedPhotoDataset.tar.gz`` exists.
         transform (callable, optional): A function/transform that takes in a PIL image
             and returns a transformed version. E.g, ``transforms.RandomCrop``
@@ -29,7 +28,7 @@ class SBU(VisionDataset):
 
     def __init__(
         self,
-        root: Union[str, Path],
+        root: str,
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None,
         download: bool = True,
@@ -91,12 +90,17 @@ class SBU(VisionDataset):
 
     def download(self) -> None:
         """Download and extract the tarball, and download each individual photo."""
+        import tarfile
 
         if self._check_integrity():
             print("Files already downloaded and verified")
             return
 
-        download_and_extract_archive(self.url, self.root, self.root, self.filename, self.md5_checksum)
+        download_url(self.url, self.root, self.filename, self.md5_checksum)
+
+        # Extract file
+        with tarfile.open(os.path.join(self.root, self.filename), "r:gz") as tar:
+            tar.extractall(path=self.root)
 
         # Download individual photos
         with open(os.path.join(self.root, "dataset", "SBU_captioned_photo_dataset_urls.txt")) as fh:

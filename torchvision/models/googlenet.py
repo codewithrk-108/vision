@@ -290,8 +290,6 @@ class GoogLeNet_Weights(WeightsEnum):
                     "acc@5": 89.530,
                 }
             },
-            "_ops": 1.498,
-            "_file_size": 49.731,
             "_docs": """These weights are ported from the original paper.""",
         },
     )
@@ -332,7 +330,7 @@ def googlenet(*, weights: Optional[GoogLeNet_Weights] = None, progress: bool = T
     model = GoogLeNet(**kwargs)
 
     if weights is not None:
-        model.load_state_dict(weights.get_state_dict(progress=progress, check_hash=True))
+        model.load_state_dict(weights.get_state_dict(progress=progress))
         if not original_aux_logits:
             model.aux_logits = False
             model.aux1 = None  # type: ignore[assignment]
@@ -343,3 +341,15 @@ def googlenet(*, weights: Optional[GoogLeNet_Weights] = None, progress: bool = T
             )
 
     return model
+
+
+# The dictionary below is internal implementation detail and will be removed in v0.15
+from ._utils import _ModelURLs
+
+
+model_urls = _ModelURLs(
+    {
+        # GoogLeNet ported from TensorFlow
+        "googlenet": GoogLeNet_Weights.IMAGENET1K_V1.url,
+    }
+)

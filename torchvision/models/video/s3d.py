@@ -175,8 +175,6 @@ class S3D_Weights(WeightsEnum):
                     "acc@5": 88.050,
                 }
             },
-            "_ops": 17.979,
-            "_file_size": 31.972,
         },
     )
     DEFAULT = KINETICS400_V1
@@ -214,6 +212,6 @@ def s3d(*, weights: Optional[S3D_Weights] = None, progress: bool = True, **kwarg
     model = S3D(**kwargs)
 
     if weights is not None:
-        model.load_state_dict(weights.get_state_dict(progress=progress, check_hash=True))
+        model.load_state_dict(weights.get_state_dict(progress=progress))
 
     return model

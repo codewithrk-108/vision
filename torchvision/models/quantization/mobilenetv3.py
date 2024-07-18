@@ -149,7 +149,7 @@ def _mobilenet_v3_model(
         torch.ao.quantization.prepare_qat(model, inplace=True)
 
     if weights is not None:
-        model.load_state_dict(weights.get_state_dict(progress=progress, check_hash=True))
+        model.load_state_dict(weights.get_state_dict(progress=progress))
 
     if quantize:
         torch.ao.quantization.convert(model, inplace=True)
@@ -175,8 +175,6 @@ class MobileNet_V3_Large_QuantizedWeights(WeightsEnum):
                     "acc@5": 90.858,
                 }
             },
-            "_ops": 0.217,
-            "_file_size": 21.554,
             "_docs": """
                 These weights were produced by doing Quantization Aware Training (eager mode) on top of the unquantized
                 weights listed below.
@@ -235,3 +233,15 @@ def mobilenet_v3_large(
 
     inverted_residual_setting, last_channel = _mobilenet_v3_conf("mobilenet_v3_large", **kwargs)
     return _mobilenet_v3_model(inverted_residual_setting, last_channel, weights, progress, quantize, **kwargs)
+
+
+# The dictionary below is internal implementation detail and will be removed in v0.15
+from .._utils import _ModelURLs
+from ..mobilenetv3 import model_urls  # noqa: F401
+
+
+quant_model_urls = _ModelURLs(
+    {
+        "mobilenet_v3_large_qnnpack": MobileNet_V3_Large_QuantizedWeights.IMAGENET1K_QNNPACK_V1.url,
+    }
+)

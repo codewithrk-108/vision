@@ -35,7 +35,7 @@ class ResidualBlock(nn.Module):
         # But in the RAFT training reference, the BatchNorm2d layers are only activated for the first dataset,
         # and frozen for the rest of the training process (i.e. set as eval()). The bias term is thus still useful
         # for the rest of the datasets. Technically, we could remove the bias for other norm layers like Instance norm
-        # because these aren't frozen, but we don't bother (also, we wouldn't be able to load the original weights).
+        # because these aren't frozen, but we don't bother (also, we woudn't be able to load the original weights).
         self.convnormrelu1 = Conv2dNormActivation(
             in_channels, out_channels, norm_layer=norm_layer, kernel_size=3, stride=stride, bias=True
         )
@@ -318,7 +318,7 @@ class MaskPredictor(nn.Module):
     def __init__(self, *, in_channels, hidden_size, multiplier=0.25):
         super().__init__()
         self.convrelu = Conv2dNormActivation(in_channels, hidden_size, norm_layer=None, kernel_size=3)
-        # 8 * 8 * 9 because the predicted flow is downsampled by 8, from the downsampling of the initial FeatureEncoder,
+        # 8 * 8 * 9 because the predicted flow is downsampled by 8, from the downsampling of the initial FeatureEncoder
         # and we interpolate with all 9 surrounding neighbors. See paper and appendix B.
         self.conv = nn.Conv2d(hidden_size, 8 * 8 * 9, 1, padding=0)
 
@@ -369,19 +369,6 @@ class CorrBlock(nn.Module):
             raise ValueError(
                 f"Input feature maps should have the same shape, instead got {fmap1.shape} (fmap1.shape) != {fmap2.shape} (fmap2.shape)"
             )
-
-        # Explaining min_fmap_size below: the fmaps are down-sampled (num_levels - 1) times by a factor of 2.
-        # The last corr_volume most have at least 2 values (hence the 2* factor), otherwise grid_sample() would
-        # produce nans in its output.
-        min_fmap_size = 2 * (2 ** (self.num_levels - 1))
-        if any(fmap_size < min_fmap_size for fmap_size in fmap1.shape[-2:]):
-            raise ValueError(
-                "Feature maps are too small to be down-sampled by the correlation pyramid. "
-                f"H and W of feature maps should be at least {min_fmap_size}; got: {fmap1.shape[-2:]}. "
-                "Remember that input images to the model are downsampled by 8, so that means their "
-                f"dimensions should be at least 8 * {min_fmap_size} = {8 * min_fmap_size}."
-            )
-
         corr_volume = self._compute_corr_volume(fmap1, fmap2)
 
         batch_size, h, w, num_channels, _, _ = corr_volume.shape  # _, _ = h, w
@@ -443,7 +430,7 @@ class RAFT(nn.Module):
                 Its input is ``image1``. As in the original implementation, its output will be split into 2 parts:
 
                 - one part will be used as the actual "context", passed to the recurrent unit of the ``update_block``
-                - one part will be used to initialize the hidden state of the recurrent unit of
+                - one part will be used to initialize the hidden state of the of the recurrent unit of
                   the ``update_block``
 
                 These 2 parts are split according to the ``hidden_state_size`` of the ``update_block``, so the output
@@ -487,7 +474,7 @@ class RAFT(nn.Module):
         if (h, w) != image2.shape[-2:]:
             raise ValueError(f"input images should have the same shape, instead got ({h}, {w}) != {image2.shape[-2:]}")
         if not (h % 8 == 0) and (w % 8 == 0):
-            raise ValueError(f"input image H and W should be divisible by 8, instead got {h} (h) and {w} (w)")
+            raise ValueError(f"input image H and W should be divisible by 8, insted got {h} (h) and {w} (w)")
 
         fmaps = self.feature_encoder(torch.cat([image1, image2], dim=0))
         fmap1, fmap2 = torch.chunk(fmaps, chunks=2, dim=0)
@@ -565,8 +552,6 @@ class Raft_Large_Weights(WeightsEnum):
                 "Sintel-Train-Finalpass": {"epe": 2.7894},
                 "Kitti-Train": {"per_image_epe": 5.0172, "fl_all": 17.4506},
             },
-            "_ops": 211.007,
-            "_file_size": 20.129,
             "_docs": """These weights were ported from the original paper. They
             are trained on :class:`~torchvision.datasets.FlyingChairs` +
             :class:`~torchvision.datasets.FlyingThings3D`.""",
@@ -585,8 +570,6 @@ class Raft_Large_Weights(WeightsEnum):
                 "Sintel-Train-Finalpass": {"epe": 2.7161},
                 "Kitti-Train": {"per_image_epe": 4.5118, "fl_all": 16.0679},
             },
-            "_ops": 211.007,
-            "_file_size": 20.129,
             "_docs": """These weights were trained from scratch on
             :class:`~torchvision.datasets.FlyingChairs` +
             :class:`~torchvision.datasets.FlyingThings3D`.""",
@@ -605,8 +588,6 @@ class Raft_Large_Weights(WeightsEnum):
                 "Sintel-Test-Cleanpass": {"epe": 1.94},
                 "Sintel-Test-Finalpass": {"epe": 3.18},
             },
-            "_ops": 211.007,
-            "_file_size": 20.129,
             "_docs": """
                 These weights were ported from the original paper. They are
                 trained on :class:`~torchvision.datasets.FlyingChairs` +
@@ -631,8 +612,6 @@ class Raft_Large_Weights(WeightsEnum):
                 "Sintel-Test-Cleanpass": {"epe": 1.819},
                 "Sintel-Test-Finalpass": {"epe": 3.067},
             },
-            "_ops": 211.007,
-            "_file_size": 20.129,
             "_docs": """
                 These weights were trained from scratch. They are
                 pre-trained on :class:`~torchvision.datasets.FlyingChairs` +
@@ -657,8 +636,6 @@ class Raft_Large_Weights(WeightsEnum):
             "_metrics": {
                 "Kitti-Test": {"fl_all": 5.10},
             },
-            "_ops": 211.007,
-            "_file_size": 20.129,
             "_docs": """
                 These weights were ported from the original paper. They are
                 pre-trained on :class:`~torchvision.datasets.FlyingChairs` +
@@ -680,8 +657,6 @@ class Raft_Large_Weights(WeightsEnum):
             "_metrics": {
                 "Kitti-Test": {"fl_all": 5.19},
             },
-            "_ops": 211.007,
-            "_file_size": 20.129,
             "_docs": """
                 These weights were trained from scratch. They are
                 pre-trained on :class:`~torchvision.datasets.FlyingChairs` +
@@ -723,8 +698,6 @@ class Raft_Small_Weights(WeightsEnum):
                 "Sintel-Train-Finalpass": {"epe": 3.2790},
                 "Kitti-Train": {"per_image_epe": 7.6557, "fl_all": 25.2801},
             },
-            "_ops": 47.655,
-            "_file_size": 3.821,
             "_docs": """These weights were ported from the original paper. They
             are trained on :class:`~torchvision.datasets.FlyingChairs` +
             :class:`~torchvision.datasets.FlyingThings3D`.""",
@@ -742,8 +715,6 @@ class Raft_Small_Weights(WeightsEnum):
                 "Sintel-Train-Finalpass": {"epe": 3.2831},
                 "Kitti-Train": {"per_image_epe": 7.5978, "fl_all": 25.2369},
             },
-            "_ops": 47.655,
-            "_file_size": 3.821,
             "_docs": """These weights were trained from scratch on
             :class:`~torchvision.datasets.FlyingChairs` +
             :class:`~torchvision.datasets.FlyingThings3D`.""",
@@ -831,7 +802,7 @@ def _raft(
     )
 
     if weights is not None:
-        model.load_state_dict(weights.get_state_dict(progress=progress, check_hash=True))
+        model.load_state_dict(weights.get_state_dict(progress=progress))
 
     return model
 
